@@ -17,6 +17,8 @@ jobs:
             echo "has_key=false" >> "$GITHUB_OUTPUT"
             echo "INFRACOST_API_KEY is not set; skipping cost estimation test."
           fi
+      - name: Fix permissions
+        run: chmod +x entrypoint.sh
       - name: Run Cost Estimation
         if: ${{ steps.secret_check.outputs.has_key == 'true' }}
         id: cost
