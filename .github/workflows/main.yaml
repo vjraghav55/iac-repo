@@ -22,8 +22,8 @@ jobs:
         id: cost
         uses: ./
         with:
-          iac-path: examples/terraform-aws
-          provider: aws
+          iac-path: iac-repo/trumio-iac-main/Trumio-IAC
+          provider: azure
           infracost-api-key: ${{ secrets.INFRACOST_API_KEY }}
           comment-on-pr: 'false'
           upload-report-artifact: 'true'
@@ -32,4 +32,4 @@ jobs:
         run: |
           echo "Total Monthly Cost: ${{ steps.cost.outputs.total-monthly-cost }} USD"
           cat ${{ steps.cost.outputs.report }}
-          ls -la examples/terraform-aws/*.txt examples/terraform-aws/*.json || true
+          ls -la iac-repo/trumio-iac-main/Trumio-IAC/*.txt iac-repo/trumio-iac-main/Trumio-IAC/*.json || true
