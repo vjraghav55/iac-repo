@@ -1,0 +1,48 @@
+name: Tf Destroy - IAC
+
+on: 
+  workflow_dispatch:
+    inputs:
+      project:
+          description: 'Target project id'
+          required: true
+          type: string
+
+defaults:
+  run:
+    working-directory: ./Trumio-IAC
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+
+    env:
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
+    steps:
+       
+      - uses: actions/checkout@v2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v1
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform workspace
+        run: terraform workspace select ${{ github.event.inputs.project }}
+       
+      # - name: Terraform Destroy
+      #   run: terraform destroy -target=module.aks --auto-approve
+      
+      - name: Terraform Destroy
+        run: terraform destroy --auto-approve
+
+      - name: Terraform workspace switch
+        run: terraform workspace select default
+        
+      - name: Terraform workspace deletion
+        run: terraform workspace delete ${{ github.event.inputs.project }}

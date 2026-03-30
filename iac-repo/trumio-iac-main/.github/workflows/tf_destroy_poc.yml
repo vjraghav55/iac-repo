@@ -1,0 +1,67 @@
+name: Tf Destroy - POC
+
+on: 
+  workflow_dispatch:
+    inputs:
+      project:
+          description: 'Target project id'
+          required: true
+          type: string
+
+defaults:
+  run:
+    working-directory: ./Trumio_poc/ui_rsrc
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+
+    env:
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
+    steps:
+       
+      - uses: actions/checkout@v2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v1
+
+      - name: Terraform Init
+        run: terraform init
+      
+      - name: Terraform workspace
+        run: terraform workspace select ${{ github.event.inputs.project }}
+
+## To delete all the resources 
+        
+      - name: Terraform Destroy
+        run: terraform destroy --auto-approve
+        
+## To delete individual resource, uncomment below based on requirement 
+## Deletion of Resource group will delete all the resources present within it.        
+
+      # - name: Terraform Destroy - Resource group
+      #   run: terraform destroy -target=module.resource_group.azurerm_resource_group.rg --auto-approve
+
+      # - name: Terraform Destroy - Storage account
+      #   run: terraform destroy -target=module.storage_account.azurerm_storage_account.storage --auto-approve
+
+      # - name: Terraform Destroy - OpenAI
+      #   run: terraform destroy -target=module.openai.azurerm_cognitive_account.openai --auto-approve
+
+      # - name: Terraform Destroy - App service
+      #   run: terraform destroy -target=module.app_service.azurerm_service_plan.appserviceplan -target=module.app_service.azurerm_linux_web_app.webapp --auto-approve      
+           
+
+## To delete the active workspace 
+
+      - name: Terraform workspace switch
+        run: terraform workspace select default
+        
+      - name: Terraform workspace deletion
+        run: terraform workspace delete ${{ github.event.inputs.project }}
+
+

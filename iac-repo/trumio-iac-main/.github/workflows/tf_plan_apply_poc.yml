@@ -1,0 +1,141 @@
+name: Tf Plan & Apply - POC
+
+on: 
+  workflow_dispatch:
+    inputs:
+      users:
+        description: 'Users to be invited'
+        required: true
+        default: '[{"user_display_name": "user1", "user_email_address": "user1@gmail.com", "user_type": "Guest"}, {"user_display_name": "user2", "user_email_address": "user2@gmail.com", "user_type": "Guest"}]'
+      client:
+        description: 'Client details'
+        required: true
+        default: '{"client_name": "trumio", "client_email_address": "client1@gmail.com", "client_type": "Guest"}' 
+        type: string
+      project:
+        description: 'Project id'
+        required: true
+        type: string
+      deployment:
+        description: 'Provisioning details'
+        required: true
+        default: '{"rsc_grp": "demo", "location": "east us"}'
+        type: string
+      services:
+        description: 'Input to Deploy services'
+        required: true
+        type: string
+        default: |
+          {
+            "storage_account": {
+              "deploy": false,
+              "metadata": {}
+            }, 
+            "openai": {
+              "deploy": true,
+              "metadata": {
+                "model_name": "gpt-35-turbo-16k",
+                "model_version": "0613"
+              }
+            },
+            "textanalytics": {
+              "deploy": false,
+              "metadata": {}
+            },            
+            "faceapi": {
+              "deploy": false,
+              "metadata": {}
+            },
+            "computervision": {
+              "deploy": false,
+              "metadata": {}      
+            },
+            "app_service": {
+              "deploy": false,
+              "metadata": {}
+            }
+          }
+defaults:
+  run:
+    working-directory: ./Trumio_poc/ui_rsrc
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+
+    env:
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      TF_VAR_client_name: ${{ fromJson(github.event.inputs.client).client_name }}
+      TF_VAR_client_email_address: ${{ fromJson(github.event.inputs.client).client_email_address }}
+      TF_VAR_client_type: ${{ fromJson(github.event.inputs.client).client_type }}
+      TF_VAR_rsc_grp_name: ${{ fromJson(github.event.inputs.deployment).rsc_grp }}
+      TF_VAR_location: ${{ fromJson(github.event.inputs.deployment).location }}
+      TF_VAR_storage_account_deploy: ${{ fromJson(github.event.inputs.services).storage_account.deploy }}
+      TF_VAR_storage_account_metadata: ${{ toJson(fromJson(github.event.inputs.services).storage_account.metadata) }}
+      TF_VAR_openai_deploy: ${{ fromJson(github.event.inputs.services).openai.deploy }}
+      TF_VAR_openai_model_name: ${{ fromJson(github.event.inputs.services).openai.metadata.model_name }}
+      TF_VAR_openai_model_version: ${{ fromJson(github.event.inputs.services).openai.metadata.model_version }}
+      TF_VAR_textanalytics_deploy: ${{ fromJson(github.event.inputs.services).textanalytics.deploy }}
+      TF_VAR_faceapi_deploy: ${{ fromJson(github.event.inputs.services).faceapi.deploy }}
+      TF_VAR_computervision_deploy: ${{ fromJson(github.event.inputs.services).computervision.deploy }}
+      TF_VAR_app_service_deploy: ${{ fromJson(github.event.inputs.services).app_service.deploy }}
+      TF_VAR_app_service_metadata: ${{ toJson(fromJson(github.event.inputs.services).app_service.metadata) }}     
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Debug GHA input
+        run: |
+          echo "storage_account_deploy: ${{ fromJson(github.event.inputs.services).storage_account.deploy }}"
+          echo "openai_deploy: ${{ fromJson(github.event.inputs.services).openai.deploy }}"
+          echo "textanalytics_deploy: ${{ fromJson(github.event.inputs.services).textanalytics.deploy }}" 
+          echo "faceapi_deploy: ${{ fromJson(github.event.inputs.services).faceapi.deploy }}"
+          echo "computervision_deploy: ${{ fromJson(github.event.inputs.services).computervision.deploy }}"                  
+          echo "app_service_deploy: ${{ fromJson(github.event.inputs.services).app_service.deploy }}"
+
+      - name: Debug Terraform Variables
+        run: |
+          echo "rsc_grp_name: $TF_VAR_rsc_grp_name"         
+          echo "location: $TF_VAR_location"
+          echo "storage_account_deploy: $TF_VAR_storage_account_deploy"
+          echo "storage_account_metadata: $TF_VAR_storage_account_metadata"
+          echo "openai_deploy: $TF_VAR_openai_deploy"
+          echo "openai_model_name: $TF_VAR_openai_model_name"
+          echo "openai_model_version: $TF_VAR_openai_model_version" 
+          echo "textanalytics_deploy: $TF_VAR_textanalytics_deploy"  
+          echo "faceapi_deploy: $TF_VAR_faceapi_deploy"
+          echo "computervision_deploy: $TF_VAR_computervision_deploy"                  
+          echo "app_service_deploy: $TF_VAR_app_service_deploy"
+          echo "app_service_metadata: $TF_VAR_app_service_metadata"
+          
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v1
+
+      - name: Terraform Init
+        run: terraform init
+          
+      # - name: Terraform workspace creation
+      #   run: terraform workspace new ${{ github.event.inputs.project }}
+
+      # - name: Terraform workspace
+      #   run: terraform workspace select ${{ github.event.inputs.project }}  
+      
+      - name: Terraform workspace
+        run: terraform workspace select -or-create ${{ github.event.inputs.project }}
+
+      - name: Create temporary JSON file
+        run: echo '${{ github.event.inputs.users }}' > ${{ github.workspace }}/Trumio_poc/ui_rsrc/users.json
+
+      - name: Reading JSON file
+        run: cat ${{ github.workspace }}/Trumio_poc/ui_rsrc/users.json
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        run: terraform plan 
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve

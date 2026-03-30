@@ -1,0 +1,93 @@
+name: infra-ci
+
+on: 
+  release:
+    types: 
+      - published
+
+env:
+  IMAGE_NAME: infra
+
+jobs:
+  infra-ci:
+    runs-on: ${{ vars.RUNNER }}
+    #runs-on: [trumio-uat-orgrunner]
+    concurrency: release
+    permissions:
+      id-token: write
+      contents: write
+################################## TAGGING ##################################################
+    steps:
+
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        ref: ${{ vars.BRANCH }}
+        submodules: true
+
+    - name: Pick Tag from Repository Variable
+      run: |
+        echo "TAG=${{ vars.TAG }}" >> $GITHUB_ENV
+        echo "The TAG value is ${{ vars.TAG }}"
+
+#####################################  CI  #####################################################
+    # Add support for more platforms with QEMU (optional)
+    # https://github.com/docker/setup-qemu-action
+    - name: Set up QEMU
+      if: ${{ vars.RELEASE_TYPE == 'roll-out' }}
+      uses: docker/setup-qemu-action@v3
+
+    - name: Set up Docker Context for Buildx
+      if: ${{ vars.RELEASE_TYPE == 'roll-out' }}
+      id: buildx-context
+      run: |
+        docker context create builders
+
+    - name: Set up Docker Buildx
+      if: ${{ vars.RELEASE_TYPE == 'roll-out' }}
+      id: buildx
+      uses: docker/setup-buildx-action@v3
+      with:
+        version: latest
+        endpoint: builders
+      
+    # login to the ACR
+    - name: ACR Environment
+      if: ${{ vars.RELEASE_TYPE == 'roll-out' }}
+      id: env
+      run: |
+          if [[ "${{ vars.ENVIRONMENT }}" == "uat" || "${{ vars.ENVIRONMENT }}" == "tru-uat" ]]; then
+              echo "registry_url=${{ secrets.UAT_REGISTRY_URL }}" >> $GITHUB_ENV
+              echo "registry_username=${{ secrets.UAT_REGISTRY_USERNAME }}" >> $GITHUB_ENV
+              echo "registry_password=${{ secrets.UAT_REGISTRY_PASSWORD }}" >> $GITHUB_ENV
+          else
+              echo "registry_url=${{ secrets.REGISTRY_URL }}" >> $GITHUB_ENV
+              echo "registry_username=${{ secrets.REGISTRY_USERNAME }}" >> $GITHUB_ENV
+              echo "registry_password=${{ secrets.REGISTRY_PASSWORD }}" >> $GITHUB_ENV
+          fi
+
+    #build and push to ACR (method1)  for AKS runner  
+    - name: Docker Login
+      if: ${{ vars.RELEASE_TYPE == 'roll-out' }}
+      uses: azure/docker-login@v2
+      with:
+        login-server: ${{ env.registry_url }}
+        username: ${{ env.registry_username }}
+        password: ${{ env.registry_password }}
+
+    - name: Extract metadata (tags, labels) for Docker
+      if: ${{ vars.RELEASE_TYPE == 'roll-out' }}
+      id: meta
+      uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
+      with:
+        images: ${{ env.registry_url }}/${{ env.IMAGE_NAME }}
+
+    - name: Docker Build
+      if: ${{ vars.RELEASE_TYPE == 'roll-out' }}
+      run: |
+        docker build -f ./Dockerfile -t ${{ env.registry_url }}/${{ env.IMAGE_NAME }}:${{ env.TAG }} .
+
+    - name: Docker Push
+      if: ${{ vars.RELEASE_TYPE == 'roll-out' }}
+      run: |
+        docker push ${{ env.registry_url }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}
