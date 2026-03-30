@@ -1,5 +1,5 @@
 name: Test Cloud Cost Estimator
-on: [workflow_dispatch, push]
+on: [workflow_dispatch]
 
 jobs:
   test:
